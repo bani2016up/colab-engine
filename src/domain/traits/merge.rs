@@ -2,5 +2,5 @@
 
 
 pub trait Mergable {
-    fn merge(&self, other: &Self) -> Self;
+    fn merge(&self, other: Self) -> Self;
 }
