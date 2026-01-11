@@ -1,0 +1,10 @@
+[package]
+name = "colab-engine"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.8"
+serde = "1.0.228"
+serde_json = "1.0.149"
+uuid = { version = "1.19.0", features = ["v4"] }
