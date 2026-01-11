@@ -1,11 +1,11 @@
+use crate::domain::traits::dyn_file::{DynemicFileCreateDelete, DynemicFileRead, DynemicFileWrite};
 use memmap2::{Mmap, MmapMut};
 use std::fs::{File, OpenOptions};
 use std::path::PathBuf;
-use crate::domain::traits::dyn_file::{DynemicFileRead, DynemicFileWrite, DynemicFileCreateDelete};
 
 pub struct MmapFileSystemSource {
-    path: PathBuf,
-    mmap: Option<Mmap>,
+    pub path: PathBuf,
+    pub mmap: Option<Mmap>,
 }
 
 impl MmapFileSystemSource {
@@ -16,6 +16,19 @@ impl MmapFileSystemSource {
             path,
             mmap: Some(mmap),
         })
+    }
+}
+
+impl Clone for MmapFileSystemSource {
+    fn clone(&self) -> Self {
+        if self.mmap.is_some() {
+            Self::new(self.path.clone()).expect("Failed to clone MmapFileSystemSource")
+        } else {
+            Self {
+                path: self.path.clone(),
+                mmap: None,
+            }
+        }
     }
 }
 
@@ -37,6 +50,7 @@ impl DynemicFileRead for MmapFileSystemSource {
         }
     }
 }
+
 impl DynemicFileWrite for MmapFileSystemSource {
     fn set_slice(&mut self, start: usize, end: usize, content: String) {
         let current_content = self.get_content();
@@ -60,6 +74,7 @@ impl DynemicFileCreateDelete for MmapFileSystemSource {
     fn create_file(&self) -> Result<(), std::io::Error> {
         File::create(&self.path).map(|_| ())
     }
+
     fn delete_file(&self) -> Result<(), std::io::Error> {
         std::fs::remove_file(&self.path).map(|_| ())
     }
@@ -75,7 +90,8 @@ mod tests {
     fn create_test_file(dir: &TempDir, name: &str, content: &str) -> PathBuf {
         let file_path = dir.path().join(name);
         let mut file = fs::File::create(&file_path).expect("Failed to create test file");
-        file.write_all(content.as_bytes()).expect("Failed to write test content");
+        file.write_all(content.as_bytes())
+            .expect("Failed to write test content");
         file_path
     }
 
@@ -141,7 +157,8 @@ mod tests {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let file_path = create_test_file(&temp_dir, "test.txt", "Initial content");
 
-        let mut source = MmapFileSystemSource::new(file_path.clone()).expect("Failed to create source");
+        let mut source =
+            MmapFileSystemSource::new(file_path.clone()).expect("Failed to create source");
         let new_content = "New content";
         source.set_content(new_content.to_string());
 
@@ -156,7 +173,8 @@ mod tests {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let file_path = create_test_file(&temp_dir, "test.txt", "Some content");
 
-        let mut source = MmapFileSystemSource::new(file_path.clone()).expect("Failed to create source");
+        let mut source =
+            MmapFileSystemSource::new(file_path.clone()).expect("Failed to create source");
         source.set_content("".to_string());
 
         assert_eq!(source.get_content(), "");
@@ -170,7 +188,8 @@ mod tests {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let file_path = create_test_file(&temp_dir, "test.txt", "Hello, World!");
 
-        let mut source = MmapFileSystemSource::new(file_path.clone()).expect("Failed to create source");
+        let mut source =
+            MmapFileSystemSource::new(file_path.clone()).expect("Failed to create source");
         source.set_slice(0, 6, "Goodbye".to_string());
 
         let file_content = fs::read_to_string(&file_path).expect("Failed to read file");
@@ -182,7 +201,8 @@ mod tests {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let file_path = create_test_file(&temp_dir, "test.txt", "Lorem ipsum dolor");
 
-        let mut source = MmapFileSystemSource::new(file_path.clone()).expect("Failed to create source");
+        let mut source =
+            MmapFileSystemSource::new(file_path.clone()).expect("Failed to create source");
         source.set_slice(6, 11, "XXXXX".to_string());
 
         let file_content = fs::read_to_string(&file_path).expect("Failed to read file");
@@ -194,7 +214,8 @@ mod tests {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let file_path = create_test_file(&temp_dir, "test.txt", "Initial content");
 
-        let mut source = MmapFileSystemSource::new(file_path.clone()).expect("Failed to create source");
+        let mut source =
+            MmapFileSystemSource::new(file_path.clone()).expect("Failed to create source");
 
         assert_eq!(source.get_content(), "Initial content");
 

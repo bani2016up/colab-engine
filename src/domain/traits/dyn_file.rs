@@ -1,4 +1,3 @@
-
 pub trait DynemicFileCreateDelete {
     fn create_file(&self) -> Result<(), std::io::Error>;
     fn delete_file(&self) -> Result<(), std::io::Error>;

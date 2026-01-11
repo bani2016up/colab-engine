@@ -1,30 +1,29 @@
 use uuid::Uuid;
 
-use crate::domain::traits::dyn_file::{DynemicFileRead, DynemicFileWrite, DynemicFileCreateDelete};
-
+use crate::domain::traits::dyn_file::{DynemicFileCreateDelete, DynemicFileRead, DynemicFileWrite};
 
 #[derive(Debug, Clone)]
-pub struct CodeFile<T> where T: DynemicFileRead + DynemicFileWrite + DynemicFileCreateDelete {
+pub struct CodeFile<FileSource>
+where
+    FileSource: DynemicFileRead + DynemicFileWrite + DynemicFileCreateDelete,
+{
     id: Uuid,
     pub name: String,
-    pub source: T
+    pub source: FileSource,
 }
 
-
-impl<T> CodeFile<T> where T: DynemicFileRead + DynemicFileWrite + DynemicFileCreateDelete {
-     pub fn new(id: Uuid, name: String, source: T) -> Self {
-        CodeFile {
-            id,
-            name,
-            source,
-        }
+impl<FileSource> CodeFile<FileSource>
+where
+    FileSource: DynemicFileRead + DynemicFileWrite + DynemicFileCreateDelete,
+{
+    pub fn new(id: Uuid, name: String, source: FileSource) -> Self {
+        CodeFile { id, name, source }
     }
 
     pub fn id(&self) -> Uuid {
         self.id
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -36,7 +35,12 @@ mod tests {
 
     impl DynemicFileRead for TestFileWrapper {
         fn get_slice(&self, start: usize, end: usize) -> String {
-            self.content.clone().chars().skip(start).take(end - start + 1).collect()
+            self.content
+                .clone()
+                .chars()
+                .skip(start)
+                .take(end - start + 1)
+                .collect()
         }
         fn get_content(&self) -> String {
             self.content.clone()
@@ -68,19 +72,12 @@ mod tests {
         let file_wrapper = TestFileWrapper {
             content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.".to_string(),
         };
-        let code_file = CodeFile::new(
-            Uuid::new_v4(),
-            "test_file.txt".to_string(),
-            file_wrapper
-        );
+        let code_file = CodeFile::new(Uuid::new_v4(), "test_file.txt".to_string(), file_wrapper);
         assert_eq!(
             code_file.source.get_content(),
             "Lorem ipsum dolor sit amet, consectetur adipiscing elit.".to_string()
         );
-        assert_eq!(
-            code_file.source.get_slice(0, 10),
-            "Lorem ipsum".to_string()
-        );
+        assert_eq!(code_file.source.get_slice(0, 10), "Lorem ipsum".to_string());
     }
 
     #[test]
@@ -88,15 +85,9 @@ mod tests {
         let mut file_wrapper = TestFileWrapper {
             content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.".to_string(),
         };
-        let mut code_file = CodeFile::new(
-            Uuid::new_v4(),
-            "test_file.txt".to_string(),
-            file_wrapper
-        );
+        let mut code_file =
+            CodeFile::new(Uuid::new_v4(), "test_file.txt".to_string(), file_wrapper);
         code_file.source.set_content("New content".to_string());
-        assert_eq!(
-            code_file.source.get_content(),
-            "New content".to_string()
-        );
+        assert_eq!(code_file.source.get_content(), "New content".to_string());
     }
 }

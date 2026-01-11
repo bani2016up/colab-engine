@@ -2,21 +2,21 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use uuid::Uuid;
 
-use crate::domain::code_file::CodeFile;
-use crate::domain::traits::dyn_file::{DynemicFileRead, DynemicFileWrite, DynemicFileCreateDelete};
-use crate::application::repositories::code_file_repository::CodeFileRepository;
 use crate::application::errors::ApplicationError;
+use crate::application::repositories::code_file_repository::CodeFileRepository;
+use crate::domain::code_file::CodeFile;
+use crate::domain::traits::dyn_file::{DynemicFileCreateDelete, DynemicFileRead, DynemicFileWrite};
 
-pub struct InMemoryCodeFileRepository<T>
+pub struct InMemoryCodeFileRepository<FileSource>
 where
-    T: DynemicFileRead + DynemicFileWrite + DynemicFileCreateDelete,
+    FileSource: DynemicFileRead + DynemicFileWrite + DynemicFileCreateDelete,
 {
-    storage: Arc<RwLock<HashMap<Uuid, CodeFile<T>>>>,
+    storage: Arc<RwLock<HashMap<Uuid, CodeFile<FileSource>>>>,
 }
 
-impl<T> InMemoryCodeFileRepository<T>
+impl<FileSource> InMemoryCodeFileRepository<FileSource>
 where
-    T: DynemicFileRead + DynemicFileWrite + DynemicFileCreateDelete,
+    FileSource: DynemicFileRead + DynemicFileWrite + DynemicFileCreateDelete,
 {
     pub fn new() -> Self {
         Self {
@@ -25,17 +25,17 @@ where
     }
 }
 
-impl<T> CodeFileRepository<T> for InMemoryCodeFileRepository<T>
+impl<FileSource> CodeFileRepository<FileSource> for InMemoryCodeFileRepository<FileSource>
 where
-    T: DynemicFileRead + DynemicFileWrite + DynemicFileCreateDelete + Clone + Send + Sync,
+    FileSource: DynemicFileRead + DynemicFileWrite + DynemicFileCreateDelete + Clone + Send + Sync,
 {
-    fn save(&mut self, file: CodeFile<T>) -> Result<(), ApplicationError> {
+    fn save(&mut self, file: CodeFile<FileSource>) -> Result<CodeFile<FileSource>, ApplicationError> {
         let mut storage = self.storage.write().unwrap();
-        storage.insert(file.id(), file);
-        Ok(())
+        storage.insert(file.id(), file.clone());
+        Ok(file)
     }
 
-    fn find_by_id(&self, id: Uuid) -> Result<CodeFile<T>, ApplicationError> {
+    fn find_by_id(&self, id: Uuid) -> Result<CodeFile<FileSource>, ApplicationError> {
         let storage = self.storage.read().unwrap();
         storage
             .get(&id)
@@ -43,7 +43,7 @@ where
             .ok_or_else(|| ApplicationError::FileNotFound(id.to_string()))
     }
 
-    fn update(&mut self, file: CodeFile<T>) -> Result<(), ApplicationError> {
+    fn update(&mut self, file: CodeFile<FileSource>) -> Result<(), ApplicationError> {
         let mut storage = self.storage.write().unwrap();
         if !storage.contains_key(&file.id()) {
             return Err(ApplicationError::FileNotFound(file.id().to_string()));
@@ -60,7 +60,7 @@ where
         Ok(())
     }
 
-    fn list(&self) -> Result<Vec<CodeFile<T>>, ApplicationError> {
+    fn list(&self) -> Result<Vec<CodeFile<FileSource>>, ApplicationError> {
         let storage = self.storage.read().unwrap();
         Ok(storage.values().cloned().collect())
     }
