@@ -1,62 +1,23 @@
 use uuid::Uuid;
 
-use std::{collections::HashMap};
-
-use std::hash::{DefaultHasher, Hash, Hasher};
+use crate::domain::traits::dyn_file::{DynemicFileRead, DynemicFileWrite};
 
 
 #[derive(Debug, Clone)]
-pub struct CodeFile {
+pub struct CodeFile<T> where T: DynemicFileRead + DynemicFileWrite {
     id: Uuid,
     pub name: String,
-    pub content: HashMap<u64, FilePartialContent>,
-}
-
-#[derive(Debug, Clone)]
-pub struct FilePartialContent {
-    id: Uuid,
-    hash: u64,
-    content: String
+    source: T
 }
 
 
-impl CodeFile {
-     fn new(id: Uuid, name: String, content: HashMap<u64, FilePartialContent>) -> Self {
+impl<T> CodeFile<T> where T: DynemicFileRead + DynemicFileWrite {
+     fn new(id: Uuid, name: String, source: T) -> Self {
         CodeFile {
-            id: id,
-            name: name,
-            content: content,
+            id,
+            name,
+            source,
         }
-    }
-}
-
-
-
-
-impl FilePartialContent {
-    pub fn new(id: Uuid, content: String) -> Self {
-        FilePartialContent {
-            id: id,
-            hash: FilePartialContent::evaluate_hash(&content),
-            content,
-        }
-    }
-
-     pub fn evaluate_hash(content: &str) -> u64 {
-        let mut state = DefaultHasher::new();
-        content.as_bytes().hash(&mut state);
-        state.finish()
-    }
-
-    pub fn get_hash(&self) -> u64 {
-        self.hash
-    }
-    pub fn get_content(&self) -> &str {
-        &self.content
-    }
-    pub fn set_content(&mut self, content: String) {
-        self.content = content.clone();
-        self.hash = FilePartialContent::evaluate_hash(&content);
     }
 }
 
@@ -65,58 +26,64 @@ impl FilePartialContent {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_code_file_creation() {
-        let content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit.".to_string();
-        let file_partial_content = FilePartialContent::new(Uuid::new_v4(), content.clone());
-        let hash = file_partial_content.get_hash();
-
-        let mut content_map = HashMap::new();
-        content_map.insert(hash, file_partial_content);
-
-        let code_file = CodeFile::new(Uuid::new_v4(), "test_file".to_string(), content_map);
-        assert_eq!(code_file.name, "test_file");
-        assert_eq!(code_file.content.len(), 1);
-        let content_part = code_file.content.values().next().unwrap();
-        assert_eq!(content_part.get_content(), "Lorem ipsum dolor sit amet, consectetur adipiscing elit.");
+    struct TestFileWrapper {
+        content: String,
     }
 
-    #[test]
-    fn test_code_file_creation_with_multiple_chunks() {
-        let content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit.";
-        let chunk_len = 10;
-        let mut content_map = HashMap::new();
-
-        for i in 0..(content.len() / chunk_len + 1) {
-            let start = chunk_len * i;
-            let end = std::cmp::min(start + chunk_len, content.len());
-            if start < content.len() {
-                let chunk = &content[start..end];
-                let file_partial_content = FilePartialContent::new(Uuid::new_v4(), chunk.to_string());
-                content_map.insert(file_partial_content.get_hash(), file_partial_content);
-            }
+    impl DynemicFileRead for TestFileWrapper {
+        fn get_slice(&self, start: usize, end: usize) -> String {
+            self.content.clone().chars().skip(start).take(end - start + 1).collect()
         }
+        fn get_content(&self) -> String {
+            self.content.clone()
+        }
+    }
 
-        let code_file = CodeFile::new(Uuid::new_v4(), "test_file".to_string(), content_map);
-        assert_eq!(code_file.name, "test_file");
-        assert_eq!(code_file.content.len(), 6);
-        let mut contents: Vec<&str> = code_file.content.values().map(|v| v.get_content()).collect();
-        contents.sort();
-        assert!(contents.contains(&"Lorem ipsu"));
+    impl DynemicFileWrite for TestFileWrapper {
+        fn set_slice(&mut self, start: usize, end: usize, content: String) {
+            let mut chars: Vec<char> = self.content.chars().collect();
+            chars[start..end].clone_from_slice(&content.chars().collect::<Vec<char>>());
+            self.content = chars.into_iter().collect();
+        }
+        fn set_content(&mut self, content: String) {
+            self.content = content;
+        }
     }
 
     #[test]
-    fn test_file_partial_content_hash() {
-        let content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit.".to_string();
-        let file_partial_content = FilePartialContent::new(Uuid::new_v4(), content.clone());
-        assert_eq!(file_partial_content.get_hash(), FilePartialContent::evaluate_hash(&content));
+    fn test_code_file() {
+        let file_wrapper = TestFileWrapper {
+            content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.".to_string(),
+        };
+        let code_file = CodeFile::new(
+            Uuid::new_v4(),
+            "test_file.txt".to_string(),
+            file_wrapper
+        );
+        assert_eq!(
+            code_file.source.get_content(),
+            "Lorem ipsum dolor sit amet, consectetur adipiscing elit.".to_string()
+        );
+        assert_eq!(
+            code_file.source.get_slice(0, 10),
+            "Lorem ipsum".to_string()
+        );
     }
 
     #[test]
-    fn test_file_partial_content_hash_func() {
-        let content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit.".to_string();
-        let mut hasher = DefaultHasher::new();
-        content.as_bytes().hash(&mut hasher);
-        assert_eq!(FilePartialContent::evaluate_hash(&content), hasher.finish());
+    fn test_code_file_set_content() {
+        let mut file_wrapper = TestFileWrapper {
+            content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.".to_string(),
+        };
+        let mut code_file = CodeFile::new(
+            Uuid::new_v4(),
+            "test_file.txt".to_string(),
+            file_wrapper
+        );
+        code_file.source.set_content("New content".to_string());
+        assert_eq!(
+            code_file.source.get_content(),
+            "New content".to_string()
+        );
     }
 }
