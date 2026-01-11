@@ -1,23 +1,27 @@
 use uuid::Uuid;
 
-use crate::domain::traits::dyn_file::{DynemicFileRead, DynemicFileWrite};
+use crate::domain::traits::dyn_file::{DynemicFileRead, DynemicFileWrite, DynemicFileCreateDelete};
 
 
 #[derive(Debug, Clone)]
-pub struct CodeFile<T> where T: DynemicFileRead + DynemicFileWrite {
+pub struct CodeFile<T> where T: DynemicFileRead + DynemicFileWrite + DynemicFileCreateDelete {
     id: Uuid,
     pub name: String,
-    source: T
+    pub source: T
 }
 
 
-impl<T> CodeFile<T> where T: DynemicFileRead + DynemicFileWrite {
-     fn new(id: Uuid, name: String, source: T) -> Self {
+impl<T> CodeFile<T> where T: DynemicFileRead + DynemicFileWrite + DynemicFileCreateDelete {
+     pub fn new(id: Uuid, name: String, source: T) -> Self {
         CodeFile {
             id,
             name,
             source,
         }
+    }
+
+    pub fn id(&self) -> Uuid {
+        self.id
     }
 }
 
@@ -47,6 +51,15 @@ mod tests {
         }
         fn set_content(&mut self, content: String) {
             self.content = content;
+        }
+    }
+
+    impl DynemicFileCreateDelete for TestFileWrapper {
+        fn create_file(&self) -> Result<(), std::io::Error> {
+            Ok(())
+        }
+        fn delete_file(&self) -> Result<(), std::io::Error> {
+            Ok(())
         }
     }
 

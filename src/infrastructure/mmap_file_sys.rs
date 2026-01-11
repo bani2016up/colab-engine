@@ -1,7 +1,7 @@
 use memmap2::{Mmap, MmapMut};
 use std::fs::{File, OpenOptions};
 use std::path::PathBuf;
-use crate::domain::traits::dyn_file::{DynemicFileRead, DynemicFileWrite};
+use crate::domain::traits::dyn_file::{DynemicFileRead, DynemicFileWrite, DynemicFileCreateDelete};
 
 pub struct MmapFileSystemSource {
     path: PathBuf,
@@ -56,6 +56,14 @@ impl DynemicFileWrite for MmapFileSystemSource {
     }
 }
 
+impl DynemicFileCreateDelete for MmapFileSystemSource {
+    fn create_file(&self) -> Result<(), std::io::Error> {
+        File::create(&self.path).map(|_| ())
+    }
+    fn delete_file(&self) -> Result<(), std::io::Error> {
+        std::fs::remove_file(&self.path).map(|_| ())
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -219,5 +227,117 @@ mod tests {
         let source = MmapFileSystemSource::new(file_path).expect("Failed to create source");
         assert_eq!(source.get_content().len(), 10000);
         assert_eq!(source.get_slice(0, 100), "A".repeat(100));
+    }
+
+    #[test]
+    fn test_create_file() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = temp_dir.path().join("new_file.txt");
+
+        let source = MmapFileSystemSource {
+            path: file_path.clone(),
+            mmap: None,
+        };
+
+        let result = source.create_file();
+        assert!(result.is_ok());
+        assert!(file_path.exists());
+    }
+
+    #[test]
+    fn test_create_file_already_exists() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = create_test_file(&temp_dir, "existing.txt", "content");
+
+        let source = MmapFileSystemSource {
+            path: file_path.clone(),
+            mmap: None,
+        };
+
+        let result = source.create_file();
+        assert!(result.is_ok());
+        assert!(file_path.exists());
+    }
+
+    #[test]
+    fn test_create_file_invalid_path() {
+        let file_path = PathBuf::from("/invalid/nonexistent/directory/file.txt");
+
+        let source = MmapFileSystemSource {
+            path: file_path.clone(),
+            mmap: None,
+        };
+
+        let result = source.create_file();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_delete_file() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = create_test_file(&temp_dir, "to_delete.txt", "content");
+
+        assert!(file_path.exists());
+
+        let source = MmapFileSystemSource {
+            path: file_path.clone(),
+            mmap: None,
+        };
+
+        let result = source.delete_file();
+        assert!(result.is_ok());
+        assert!(!file_path.exists());
+    }
+
+    #[test]
+    fn test_delete_nonexistent_file() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = temp_dir.path().join("nonexistent.txt");
+
+        let source = MmapFileSystemSource {
+            path: file_path.clone(),
+            mmap: None,
+        };
+
+        let result = source.delete_file();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_create_then_delete_file() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = temp_dir.path().join("temp_file.txt");
+
+        let source = MmapFileSystemSource {
+            path: file_path.clone(),
+            mmap: None,
+        };
+
+        let create_result = source.create_file();
+        assert!(create_result.is_ok());
+        assert!(file_path.exists());
+
+        let delete_result = source.delete_file();
+        assert!(delete_result.is_ok());
+        assert!(!file_path.exists());
+    }
+
+    #[test]
+    fn test_delete_file_with_mmap() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = create_test_file(&temp_dir, "mapped.txt", "content");
+
+        let source = MmapFileSystemSource::new(file_path.clone()).expect("Failed to create source");
+
+        drop(source);
+
+        let source_for_delete = MmapFileSystemSource {
+            path: file_path.clone(),
+            mmap: None,
+        };
+
+        let result = source_for_delete.delete_file();
+        assert!(result.is_ok());
+        assert!(!file_path.exists());
     }
 }
